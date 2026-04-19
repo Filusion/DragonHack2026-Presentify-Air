@@ -5,9 +5,28 @@ import { parsePptx } from '../utils/parsePptx'
 
 export default function Dashboard() {
   const [presentations, setPresentations] = useState([
-    { id: 'pitch', title: 'Presentify Air — Pitch Deck', slides: 5, parsedSlides: null, isPitch: true },
-    { id: '1', title: 'My First Presentation', slides: 8, parsedSlides: null },
-    { id: '2', title: 'Project Deck', slides: 12, parsedSlides: null },
+    {
+      id: 'pitch',
+      title: 'Presentify Air — Pitch Deck',
+      slides: 5,
+      parsedSlides: null,
+      isPitch: true,
+      thumbnail: './public/live-pitch.png',
+    },
+    {
+      id: '1',
+      title: 'My First Presentation',
+      slides: 8,
+      parsedSlides: null,
+      thumbnail: './public/second.png',
+    },
+    {
+      id: '2',
+      title: 'Project Deck',
+      slides: 12,
+      parsedSlides: null,
+      thumbnail: './public/third.png',
+    },
   ])
   const [dragOver, setDragOver] = useState(false)
   const [parsing, setParsing] = useState(false)
@@ -27,19 +46,30 @@ export default function Dashboard() {
           title,
           slides: slides.length,
           parsedSlides: slides,
+          thumbnail: null,
         }
         setPresentations(prev => [newPres, ...prev])
       } catch (err) {
         console.error('Failed to parse pptx:', err)
-        // fallback: add without parsed slides
-        const newPres = { id: String(Date.now()), title: file.name.replace(/\.[^/.]+$/, ''), slides: 0, parsedSlides: null }
+        const newPres = {
+          id: String(Date.now()),
+          title: file.name.replace(/\.[^/.]+$/, ''),
+          slides: 0,
+          parsedSlides: null,
+          thumbnail: null,
+        }
         setPresentations(prev => [newPres, ...prev])
       } finally {
         setParsing(false)
       }
     } else {
-      // PDF or .ppt — can't parse in browser, add as stub
-      const newPres = { id: String(Date.now()), title: file.name.replace(/\.[^/.]+$/, ''), slides: 0, parsedSlides: null }
+      const newPres = {
+        id: String(Date.now()),
+        title: file.name.replace(/\.[^/.]+$/, ''),
+        slides: 0,
+        parsedSlides: null,
+        thumbnail: null,
+      }
       setPresentations(prev => [newPres, ...prev])
     }
   }
@@ -57,13 +87,21 @@ export default function Dashboard() {
 
   function handleCreateNew() {
     const newId = String(Date.now())
-    const newPres = { id: newId, title: 'Untitled Presentation', slides: 0, parsedSlides: null }
+    const newPres = {
+      id: newId,
+      title: 'Untitled Presentation',
+      slides: 0,
+      parsedSlides: null,
+      thumbnail: null,
+    }
     setPresentations(prev => [newPres, ...prev])
     navigate(`/presentation/${newId}`, { state: { slides: null, title: 'Untitled Presentation' } })
   }
 
   function handleStartPresenting(p) {
-    navigate(`/presentation/${p.id}`, { state: { slides: p.parsedSlides, title: p.title, isPitch: p.isPitch || false } })
+    navigate(`/presentation/${p.id}`, {
+      state: { slides: p.parsedSlides, title: p.title, isPitch: p.isPitch || false },
+    })
   }
 
   return (
@@ -133,7 +171,9 @@ export default function Dashboard() {
           </div>
           <div className="stat-chip">
             <span className="stat-n" style={{ color: '#0f6e56' }}>
-              {presentations.length > 0 ? Math.round(presentations.reduce((a, p) => a + p.slides, 0) / presentations.length) : 0}
+              {presentations.length > 0
+                ? Math.round(presentations.reduce((a, p) => a + p.slides, 0) / presentations.length)
+                : 0}
             </span>
             <span className="stat-l">Avg Slides</span>
           </div>

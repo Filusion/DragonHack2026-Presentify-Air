@@ -223,6 +223,172 @@ function GestureToast({ gesture }) {
 }
 
 // ─── Main component ───────────────────────────────────────────
+
+// ─── Floating slide preview (shown in whiteboard mode) ────────
+const SIZES = [
+  { label: 'S', w: 240, h: 135 },
+  { label: 'M', w: 360, h: 202 },
+  { label: 'L', w: 520, h: 292 },
+]
+
+function FloatingSlidePreview({ slide, isPitchSlide, onClose }) {
+  const [sizeIdx, setSizeIdx] = useState(1) // default M
+  const [pos, setPos] = useState({ x: 24, y: 24 })
+  const [dragging, setDragging] = useState(false)
+  const dragStart = useRef(null)
+
+  const size = SIZES[sizeIdx]
+
+  function onMouseDown(e) {
+    if (e.target.closest('.fsp-actions')) return
+    e.preventDefault()
+    setDragging(true)
+    dragStart.current = { mx: e.clientX, my: e.clientY, ox: pos.x, oy: pos.y }
+  }
+
+  useEffect(() => {
+    if (!dragging) return
+    function onMove(e) {
+      const dx = e.clientX - dragStart.current.mx
+      const dy = e.clientY - dragStart.current.my
+      setPos({ x: dragStart.current.ox + dx, y: dragStart.current.oy + dy })
+    }
+    function onUp() { setDragging(false) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+  }, [dragging])
+
+  const perspective = sizeIdx === 0 ? 400 : sizeIdx === 1 ? 600 : 900
+
+  return (
+    <div
+      style={{
+        position:   'fixed',
+        left:       pos.x,
+        top:        pos.y,
+        width:      size.w,
+        zIndex:     300,
+        cursor:     dragging ? 'grabbing' : 'grab',
+        userSelect: 'none',
+        filter:     'drop-shadow(0 8px 32px rgba(0,0,0,0.55))',
+        transition: dragging ? 'none' : 'filter 0.2s',
+      }}
+      onMouseDown={onMouseDown}
+    >
+      {/* ── drag handle / control bar ── */}
+      <div style={{
+        display:        'flex',
+        alignItems:     'center',
+        justifyContent: 'space-between',
+        background:     'rgba(15,24,37,0.92)',
+        borderRadius:   '10px 10px 0 0',
+        padding:        '5px 8px',
+        borderBottom:   '1px solid rgba(255,255,255,0.08)',
+      }}>
+        {/* drag grip dots */}
+        <div style={{ display:'flex', gap:3, paddingLeft:2 }}>
+          {[0,1,2,3,4,5].map(i => (
+            <div key={i} style={{ width:3, height:3, borderRadius:'50%', background:'rgba(255,255,255,0.25)' }} />
+          ))}
+        </div>
+
+        {/* size buttons + close */}
+        <div className="fsp-actions" style={{ display:'flex', gap:3, alignItems:'center' }}>
+          {SIZES.map((s, i) => (
+            <button
+              key={s.label}
+              onMouseDown={e => e.stopPropagation()}
+              onClick={() => setSizeIdx(i)}
+              style={{
+                background:   i === sizeIdx ? 'rgba(129,210,199,0.2)' : 'transparent',
+                border:       `1px solid ${i === sizeIdx ? '#81d2c7' : 'rgba(255,255,255,0.15)'}`,
+                color:        i === sizeIdx ? '#81d2c7' : 'rgba(255,255,255,0.4)',
+                borderRadius: 5,
+                padding:      '2px 7px',
+                fontSize:     10,
+                fontWeight:   600,
+                cursor:       'pointer',
+                transition:   'all 0.15s',
+                fontFamily:   'inherit',
+              }}
+            >
+              {s.label}
+            </button>
+          ))}
+
+          {/* close button */}
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={onClose}
+            title="Hide slide preview"
+            style={{
+              background:   'transparent',
+              border:       '1px solid rgba(255,255,255,0.15)',
+              color:        'rgba(255,255,255,0.45)',
+              borderRadius: 5,
+              width:        22,
+              height:       22,
+              display:      'flex',
+              alignItems:   'center',
+              justifyContent: 'center',
+              fontSize:     14,
+              lineHeight:   1,
+              cursor:       'pointer',
+              marginLeft:   4,
+              transition:   'all 0.15s',
+              fontFamily:   'inherit',
+              padding:      0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,100,100,0.15)'; e.currentTarget.style.borderColor = 'rgba(255,100,100,0.4)'; e.currentTarget.style.color = '#ff6b6b' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; e.currentTarget.style.color = 'rgba(255,255,255,0.45)' }}
+          >
+            ×
+          </button>
+        </div>
+      </div>
+
+      {/* ── slide content with 3D perspective ── */}
+      <div style={{
+        width:      size.w,
+        height:     size.h,
+        overflow:   'hidden',
+        borderRadius: '0 0 10px 10px',
+        border:     '1px solid rgba(255,255,255,0.1)',
+        borderTop:  'none',
+        perspective: perspective,
+        perspectiveOrigin: '50% 50%',
+      }}>
+        <div style={{
+          width:      '100%',
+          height:     '100%',
+          transformStyle: 'preserve-3d',
+          transform:  'rotateX(2deg) rotateY(-1.5deg)',
+          transition: 'transform 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+        }}>
+          {/* scale the slide component down to fit */}
+          <div style={{
+            width:     960,
+            height:    540,
+            transform: `scale(${size.w / 960})`,
+            transformOrigin: '0 0',
+            pointerEvents: 'none',
+          }}>
+            {isPitchSlide
+              ? <slide.component />
+              : <SlideView slide={slide} />
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────
 export default function Presentation() {
   const { id }   = useParams()
   const navigate = useNavigate()
@@ -232,36 +398,30 @@ export default function Presentation() {
   const isPitch = location.state?.isPitch
   const slides = isPitch ? PITCH_DECK : (passedSlides?.length > 0 ? passedSlides : PITCH_DECK)
 
-  const [mode,        setMode]        = useState('slide')
-  const [slideIndex,  setSlideIndex]  = useState(0)
-  const [brushColor,  setBrushColor]  = useState('#81d2c7')
-  const [brushSize,   setBrushSize]   = useState(4)
-  const [clearCount,  setClearCount]  = useState(0)
+  const [mode,         setMode]         = useState('slide')
+  const [slideIndex,   setSlideIndex]   = useState(0)
+  const [brushColor,   setBrushColor]   = useState('#81d2c7')
+  const [brushSize,    setBrushSize]    = useState(4)
+  const [clearCount,   setClearCount]   = useState(0)
   const [toastGesture, setToastGesture] = useState(null)
+  const [previewVisible, setPreviewVisible] = useState(true)
   const toastTimer = useRef(null)
 
-  // Mouse/touch drawing (whiteboard only)
-  const canvasRef = useRef(null)
-  const drawing   = useRef(false)
-  const lastPoint = useRef(null)
+  const canvasRef  = useRef(null)
+  const drawing    = useRef(false)
+  const lastPoint  = useRef(null)
 
-  // Hand tracking
   const { handState, connected, onGesture } = useHandTracking()
 
-  // Show a brief toast when a gesture fires
   const showToast = useCallback((g) => {
     setToastGesture(g)
     clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToastGesture(null), 1500)
   }, [])
 
-  // Keep slides.length in a ref so the gesture callback never goes stale
-  // without re-registering — avoids the effect re-running on every render.
   const slidesLengthRef = useRef(slides.length)
   useEffect(() => { slidesLengthRef.current = slides.length }, [slides.length])
 
-  // Wire up gesture events — empty dep array so this runs exactly once.
-  // All values accessed inside come from refs or stable setters.
   useEffect(() => {
     onGesture((gesture) => {
       showToast(gesture)
@@ -271,29 +431,24 @@ export default function Presentation() {
         setSlideIndex(i => Math.max(i - 1, 0))
       } else if (gesture === 'OPEN_WHITEBOARD') {
         setMode('whiteboard')
+        setPreviewVisible(true)
       } else if (gesture === 'CLOSE_WHITEBOARD') {
         setMode('slide')
       }
     })
-  }, [onGesture, showToast])  // stable refs — does not re-run on slide change
+  }, [onGesture, showToast])
 
-  // Keyboard shortcuts
   useEffect(() => {
     function handleKey(e) {
       if      (e.key === 'ArrowRight' || e.key === ' ') setSlideIndex(i => Math.min(i + 1, slides.length - 1))
       else if (e.key === 'ArrowLeft')                   setSlideIndex(i => Math.max(i - 1, 0))
-      else if (e.key === 'w')                           setMode(m => m === 'slide' ? 'whiteboard' : 'slide')
+      else if (e.key === 'w') { setMode(m => { if (m === 'slide') { setPreviewVisible(true); return 'whiteboard' } return 'slide' }) }
       else if (e.key === 'Escape')                      navigate('/')
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
   }, [navigate, slides.length])
 
-  // Whiteboard canvas resize
-  // FIX: ctx.scale() is multiplicative — calling it on every resize event without
-  // resetting the transform first multiplies the scale by dpr each time, shifting
-  // every drawn point further off-screen with each window resize.
-  // Always call ctx.setTransform(1,0,0,1,0,0) to reset before re-applying scale.
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -303,7 +458,7 @@ export default function Presentation() {
       canvas.width  = Math.floor(width  * dpr)
       canvas.height = Math.floor(height * dpr)
       const ctx = canvas.getContext('2d')
-      ctx.setTransform(1, 0, 0, 1, 0, 0)   // reset before scaling
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
       ctx.scale(dpr, dpr)
     }
     resize()
@@ -328,11 +483,11 @@ export default function Presentation() {
   function clearCanvas() {
     const canvas = canvasRef.current
     if (canvas) canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height)
-    setClearCount(n => n + 1)   // also clears hand cursor strokes
+    setClearCount(n => n + 1)
   }
 
-  const currentSlide  = slides[slideIndex]
-  const isPitchSlide  = !!currentSlide?.component
+  const currentSlide = slides[slideIndex]
+  const isPitchSlide = !!currentSlide?.component
 
   return (
     <div className="presentation-fullscreen">
@@ -343,8 +498,8 @@ export default function Presentation() {
         </div>
 
         <div className="pres-toolbar-center">
-          <button className={`tb-btn ${mode==='slide' ? 'active':''}`} onClick={() => setMode('slide')}>Slides</button>
-          <button className={`tb-btn ${mode==='whiteboard' ? 'active':''}`} onClick={() => setMode('whiteboard')}>Whiteboard</button>
+          <button className={`tb-btn ${mode==='slide'?'active':''}`} onClick={() => setMode('slide')}>Slides</button>
+          <button className={`tb-btn ${mode==='whiteboard'?'active':''}`} onClick={() => setMode('whiteboard')}>Whiteboard</button>
           {mode === 'slide' && <>
             <div style={{ width:1, height:20, background:'rgba(255,255,255,0.1)', margin:'0 4px' }} />
             <button className="tb-btn" onClick={() => setSlideIndex(i => Math.max(i-1,0))}>←</button>
@@ -354,7 +509,6 @@ export default function Presentation() {
         </div>
 
         <div className="pres-toolbar-right">
-          {/* Hand tracking indicator */}
           <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color: connected ? '#81d2c7' : 'rgba(255,255,255,0.3)' }}>
             <div style={{ width:8, height:8, borderRadius:'50%', background: connected ? '#81d2c7' : 'rgba(255,255,255,0.2)' }} />
             {connected ? (handState.hand_visible ? '✋ Hand detected' : 'Hand tracker on') : 'No hand tracker'}
@@ -362,6 +516,13 @@ export default function Presentation() {
 
           {mode === 'whiteboard' && <>
             <div style={{ width:1, height:20, background:'rgba(255,255,255,0.1)', margin:'0 8px' }} />
+            <button
+              className={`tb-btn ${previewVisible ? 'active' : ''}`}
+              onClick={() => setPreviewVisible(v => !v)}
+              title={previewVisible ? 'Hide slide preview' : 'Show slide preview'}
+            >
+              ⧉ Slide
+            </button>
             <select value={brushSize} onChange={e => setBrushSize(Number(e.target.value))}
               style={{ background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.12)', color:'rgba(255,255,255,0.8)', borderRadius:8, padding:'6px 10px', fontSize:13, fontFamily:'inherit', cursor:'pointer' }}>
               <option value={2}>Thin</option>
@@ -382,27 +543,14 @@ export default function Presentation() {
         {mode === 'slide' ? (
           <div style={{ position:'relative', width:'100%', maxWidth:960 }}>
             {isPitchSlide ? <currentSlide.component /> : <SlideView slide={currentSlide} />}
-            {/* Hand cursor overlay on slide */}
-            <HandCursor
-              handState={handState}
-              mirror={true}
-              clearTrigger={clearCount}
-            />
+            <HandCursor handState={handState} mirror={true} clearTrigger={clearCount} />
           </div>
         ) : (
           <div className="whiteboard-wrapper" style={{ position:'relative' }}>
-            {/* Mouse drawing canvas */}
             <canvas ref={canvasRef} className="whiteboard-canvas"
               onPointerDown={startDraw} onPointerMove={draw}
               onPointerUp={endDraw} onPointerCancel={endDraw} onPointerLeave={endDraw} />
-
-            {/* Hand cursor + drawing overlay */}
-            <HandCursor
-              handState={handState}
-              mirror={true}
-              clearTrigger={clearCount}
-            />
-
+            <HandCursor handState={handState} mirror={true} clearTrigger={clearCount} />
             <div className="wb-tools">
               {WB_COLORS.map(c => (
                 <div key={c.hex} className={`wb-color ${brushColor===c.hex?'selected':''}`}
@@ -413,10 +561,17 @@ export default function Presentation() {
         )}
       </div>
 
-      {/* ── Gesture toast ── */}
+      {/* ── Floating slide preview (whiteboard mode only) ── */}
+      {mode === 'whiteboard' && previewVisible && (
+        <FloatingSlidePreview
+          slide={currentSlide}
+          isPitchSlide={isPitchSlide}
+          onClose={() => setPreviewVisible(false)}
+        />
+      )}
+
       <GestureToast gesture={toastGesture} />
 
-      {/* ── Gesture cheat sheet (bottom-left) ── */}
       {connected && (
         <div style={{
           position:'fixed', bottom:20, left:20,
