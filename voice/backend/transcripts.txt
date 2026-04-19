@@ -1,0 +1,4 @@
+[2026-04-19 08:40:14] Hello, I'm talking right now, can you understand what I'm saying? | pause_before_ms=33 | latency_ms=2702
+[2026-04-19 08:40:22] Thank you for your attention. | pause_before_ms=200 | latency_ms=676
+[2026-04-19 08:40:30] Next slide, please. | pause_before_ms=50 | latency_ms=1457
+[2026-04-19 08:40:37] Thank you. | pause_before_ms=200 | latency_ms=1011

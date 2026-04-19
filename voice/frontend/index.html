@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Presentation Assistant - Whisper Transcription</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #121933;
+      --panel-2: #0f1630;
+      --line: #22305f;
+      --text: #e8ecff;
+      --muted: #94a3c4;
+      --green: #22c55e;
+      --red: #ef4444;
+      --blue: #60a5fa;
+      --yellow: #f59e0b;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: linear-gradient(180deg, #09101d 0%, #0b1020 100%);
+      color: var(--text);
+      padding: 24px;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 { margin: 0 0 8px; font-size: 32px; }
+    p { color: var(--muted); margin: 0; }
+    .topbar, .settings, .stats, .timeline {
+      display: grid;
+      gap: 16px;
+      margin-top: 18px;
+    }
+    .topbar { grid-template-columns: 1.4fr 1fr; }
+    .settings { grid-template-columns: repeat(4, 1fr); }
+    .stats { grid-template-columns: repeat(4, 1fr); }
+    .timeline { grid-template-columns: 1fr; }
+    .card {
+      background: rgba(18, 25, 51, 0.94);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.22);
+    }
+    .label {
+      font-size: 12px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .big {
+      font-size: 24px;
+      font-weight: 700;
+    }
+    .sub {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.45;
+    }
+    button, select, input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 14px;
+    }
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      background: #1b4fd8;
+    }
+    button.secondary { background: #1a223d; }
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .meter {
+      height: 18px;
+      background: #0b1228;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 14px;
+    }
+    .meter-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--green), var(--yellow), var(--red));
+      transition: width 80ms linear;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      font-size: 14px;
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #0d1530;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--red);
+    }
+    .dot.live { background: var(--green); }
+    .dot.speaking { background: var(--yellow); }
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 520px;
+      overflow: auto;
+    }
+    .line {
+      border: 1px solid var(--line);
+      background: #0d1530;
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+    .line-top {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .line-text {
+      font-size: 16px;
+      line-height: 1.45;
+    }
+    .command {
+      color: var(--blue);
+      font-weight: 700;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    @media (max-width: 900px) {
+      .topbar, .settings, .stats { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Whisper Transcription Console</h1>
+    <p>
+      This version records one standalone audio file per detected speech segment and sends it to your FastAPI backend.
+    </p>
+
+    <div class="topbar">
+      <div class="card">
+        <div class="label">Capture state</div>
+        <div id="captureState" class="big">Idle</div>
+        <div id="captureSub" class="sub">Ready to start microphone capture.</div>
+        <div class="controls">
+          <button id="startBtn">Start transcript</button>
+          <button id="stopBtn" class="secondary">Stop transcript</button>
+        </div>
+        <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
+        <div class="status-pill"><span id="liveDot" class="dot"></span><span id="activityLabel">Silence</span></div>
+      </div>
+
+      <div class="card">
+        <div class="label">Backend status</div>
+        <div id="backendStatus" class="big">Checking…</div>
+        <div id="backendSub" class="sub">Waiting for backend health check.</div>
+        <div class="sub mono" id="debugBox" style="margin-top: 16px; white-space: pre-wrap;">No requests yet.</div>
+      </div>
+    </div>
+
+    <div class="settings">
+      <div class="card">
+        <div class="label">Language</div>
+        <select id="languageSelect">
+          <option value="en">English</option>
+          <option value="sl">Slovenian</option>
+          <option value="mk">Macedonian</option>
+          <option value="de">German</option>
+        </select>
+      </div>
+      <div class="card">
+        <div class="label">Silence end (ms)</div>
+        <input id="silenceMsInput" type="number" min="400" max="3000" step="50" value="1100" />
+      </div>
+      <div class="card">
+        <div class="label">Speech threshold</div>
+        <input id="thresholdInput" type="number" min="0.005" max="0.12" step="0.001" value="0.02" />
+      </div>
+      <div class="card">
+        <div class="label">Max segment (ms)</div>
+        <input id="maxSegmentMsInput" type="number" min="2000" max="15000" step="250" value="6500" />
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="card"><div class="label">Segments sent</div><div id="segmentsCount" class="big">0</div></div>
+      <div class="card"><div class="label">Average latency</div><div id="avgLatency" class="big">0 ms</div></div>
+      <div class="card"><div class="label">Last pause before speech</div><div id="lastPause" class="big">0 ms</div></div>
+      <div class="card"><div class="label">Last detected command</div><div id="lastCommand" class="big">None</div></div>
+    </div>
+
+    <div class="timeline">
+      <div class="card">
+        <div class="label">Transcript timeline</div>
+        <div id="transcriptList" class="list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BACKEND_URL = "http://127.0.0.1:8000";
+
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const languageSelect = document.getElementById("languageSelect");
+    const silenceMsInput = document.getElementById("silenceMsInput");
+    const thresholdInput = document.getElementById("thresholdInput");
+    const maxSegmentMsInput = document.getElementById("maxSegmentMsInput");
+
+    const captureStateEl = document.getElementById("captureState");
+    const captureSubEl = document.getElementById("captureSub");
+    const meterFillEl = document.getElementById("meterFill");
+    const liveDotEl = document.getElementById("liveDot");
+    const activityLabelEl = document.getElementById("activityLabel");
+    const backendStatusEl = document.getElementById("backendStatus");
+    const backendSubEl = document.getElementById("backendSub");
+    const debugBoxEl = document.getElementById("debugBox");
+    const transcriptListEl = document.getElementById("transcriptList");
+    const segmentsCountEl = document.getElementById("segmentsCount");
+    const avgLatencyEl = document.getElementById("avgLatency");
+    const lastPauseEl = document.getElementById("lastPause");
+    const lastCommandEl = document.getElementById("lastCommand");
+
+    let mediaStream = null;
+    let activeRecorder = null;
+    let activeChunks = [];
+    let isRecorderSegmentActive = false;
+
+    let audioContext = null;
+    let analyser = null;
+    let sourceNode = null;
+    let rafId = null;
+
+    let isRunning = false;
+    let isUploading = false;
+    let sessionId = crypto.randomUUID();
+    let segmentChunkIndex = 0;
+
+    let segmentStartedAt = null;
+    let speechStartedAt = null;
+    let speechEndedAt = null;
+    let lastSpeechAt = null;
+    let lastSilenceStartedAt = Date.now();
+    let pauseBeforeCurrentSpeechMs = 0;
+    let isSpeeching = false;
+    let rmsHistory = [];
+    let latencyValues = [];
+
+    function cfg() {
+      return {
+        threshold: Number(thresholdInput.value),
+        silenceMs: Number(silenceMsInput.value),
+        maxSegmentMs: Number(maxSegmentMsInput.value),
+        language: languageSelect.value,
+      };
+    }
+
+    async function checkBackend() {
+      try {
+        const res = await fetch(`${BACKEND_URL}/health`);
+        const data = await res.json();
+        backendStatusEl.textContent = data.ok ? "Online" : "Offline";
+        backendSubEl.textContent = data.openai_ready
+          ? `OpenAI ready. Model: ${data.model}`
+          : "Backend reachable, but OPENAI_API_KEY is missing.";
+      } catch (error) {
+        backendStatusEl.textContent = "Offline";
+        backendSubEl.textContent = error.message;
+      }
+    }
+
+    function setCaptureState(title, sub) {
+      captureStateEl.textContent = title;
+      captureSubEl.textContent = sub;
+    }
+
+    function setActivity(label, kind) {
+      activityLabelEl.textContent = label;
+      liveDotEl.className = `dot ${kind}`;
+    }
+
+    function addTranscriptLine(item) {
+      const commandHtml = item.detected_command
+        ? `<span class="command">${escapeHtml(item.detected_command)}</span>`
+        : "None";
+
+      const node = document.createElement("div");
+      node.className = "line";
+      node.innerHTML = `
+        <div class="line-top">
+          <span>Chunk ${item.chunk_index}</span>
+          <span>Latency ${item.latency_ms} ms</span>
+          <span>Pause ${item.pause_before_ms} ms</span>
+          <span>Speech ${item.speech_duration_ms} ms</span>
+          <span>Segment ${item.segment_duration_ms} ms</span>
+          <span>Command ${commandHtml}</span>
+        </div>
+        <div class="line-text">${escapeHtml(item.text || "[empty]")}</div>
+      `;
+      transcriptListEl.prepend(node);
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function updateLatencyStats(latency) {
+      latencyValues.push(latency);
+      const avg = Math.round(latencyValues.reduce((a, b) => a + b, 0) / latencyValues.length);
+      avgLatencyEl.textContent = `${avg} ms`;
+    }
+
+    function resetSegment() {
+      segmentStartedAt = null;
+      speechStartedAt = null;
+      speechEndedAt = null;
+      lastSpeechAt = null;
+      rmsHistory = [];
+      lastSilenceStartedAt = Date.now();
+      activeChunks = [];
+    }
+
+    async function uploadSegmentBlob(blob, endedAt) {
+      const avgRms = rmsHistory.length
+        ? rmsHistory.reduce((a, b) => a + b, 0) / rmsHistory.length
+        : 0;
+
+      const speechDurationMs =
+        speechStartedAt && speechEndedAt ? Math.max(0, speechEndedAt - speechStartedAt) : 0;
+      const segmentDurationMs = Math.max(0, endedAt - segmentStartedAt);
+      const speechRatio = segmentDurationMs > 0 ? speechDurationMs / segmentDurationMs : 0;
+      const currentIndex = segmentChunkIndex++;
+
+      debugBoxEl.textContent = `Uploading chunk ${currentIndex} (${Math.round(blob.size / 1024)} KB)...`;
+      setCaptureState("Transcribing", `Sending chunk ${currentIndex} to backend Whisper transcription.`);
+
+      const form = new FormData();
+      form.append("audio", blob, `chunk-${currentIndex}.webm`);
+      form.append("session_id", sessionId);
+      form.append("chunk_index", String(currentIndex));
+      form.append("language", cfg().language);
+      form.append("pause_before_ms", String(pauseBeforeCurrentSpeechMs));
+      form.append("segment_started_at_ms", String(segmentStartedAt));
+      form.append("segment_ended_at_ms", String(endedAt));
+      form.append("speech_started_at_ms", String(speechStartedAt || segmentStartedAt));
+      form.append("speech_ended_at_ms", String(speechEndedAt || endedAt));
+      form.append("rms_avg", String(avgRms));
+      form.append("speech_ratio", String(speechRatio));
+
+      try {
+        isUploading = true;
+        const res = await fetch(`${BACKEND_URL}/transcribe-chunk`, {
+          method: "POST",
+          body: form,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+
+        addTranscriptLine(data);
+        debugBoxEl.textContent = JSON.stringify(data, null, 2);
+        segmentsCountEl.textContent = String(Number(segmentsCountEl.textContent) + 1);
+        updateLatencyStats(data.latency_ms || 0);
+        lastPauseEl.textContent = `${data.pause_before_ms || 0} ms`;
+        lastCommandEl.textContent = data.detected_command || "None";
+        setCaptureState("Listening", `Chunk ${currentIndex} transcribed successfully.`);
+        setActivity("Silence", "live");
+      } catch (error) {
+        debugBoxEl.textContent = error.stack || error.message;
+        setCaptureState("Backend error", error.message);
+      } finally {
+        isUploading = false;
+      }
+    }
+
+    function beginRecorderSegment() {
+      if (isRecorderSegmentActive || !mediaStream) return;
+
+      activeChunks = [];
+      activeRecorder = new MediaRecorder(mediaStream, { mimeType: "audio/webm" });
+
+      activeRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          activeChunks.push(event.data);
+        }
+      };
+
+      activeRecorder.onstop = async () => {
+        const endedAt = Date.now();
+        isRecorderSegmentActive = false;
+
+        if (!activeChunks.length || segmentStartedAt === null) {
+          resetSegment();
+          activeRecorder = null;
+          return;
+        }
+
+        const blob = new Blob(activeChunks, { type: "audio/webm" });
+        activeRecorder = null;
+        await uploadSegmentBlob(blob, endedAt);
+        resetSegment();
+      };
+
+      activeRecorder.start();
+      isRecorderSegmentActive = true;
+    }
+
+    function stopRecorderSegment() {
+      if (!activeRecorder || !isRecorderSegmentActive) return;
+      if (activeRecorder.state !== "inactive") {
+        activeRecorder.stop();
+      }
+    }
+
+    function stopEverything() {
+      isRunning = false;
+      cancelAnimationFrame(rafId);
+
+      if (activeRecorder && activeRecorder.state !== "inactive") {
+        activeRecorder.stop();
+      }
+
+      mediaStream?.getTracks().forEach(track => track.stop());
+      sourceNode?.disconnect();
+      analyser?.disconnect();
+      audioContext?.close();
+
+      mediaStream = null;
+      activeRecorder = null;
+      activeChunks = [];
+      isRecorderSegmentActive = false;
+      audioContext = null;
+      analyser = null;
+      sourceNode = null;
+      meterFillEl.style.width = "0%";
+      setActivity("Stopped", "");
+      setCaptureState("Stopped", "Microphone capture has ended.");
+    }
+
+    async function startCapture() {
+      if (isRunning) return;
+      sessionId = crypto.randomUUID();
+      segmentChunkIndex = 0;
+      latencyValues = [];
+      segmentsCountEl.textContent = "0";
+      avgLatencyEl.textContent = "0 ms";
+      lastPauseEl.textContent = "0 ms";
+      lastCommandEl.textContent = "None";
+      transcriptListEl.innerHTML = "";
+      resetSegment();
+
+      try {
+        await checkBackend();
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          }
+        });
+      } catch (error) {
+        setCaptureState("Microphone blocked", error.message);
+        return;
+      }
+
+      audioContext = new AudioContext();
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      sourceNode = audioContext.createMediaStreamSource(mediaStream);
+      sourceNode.connect(analyser);
+
+      isRunning = true;
+      lastSilenceStartedAt = Date.now();
+      setCaptureState("Listening", "Audio is being chunked locally and sent to Whisper after each speech segment.");
+      setActivity("Silence", "live");
+      sampleLoop();
+    }
+
+    function sampleLoop() {
+      if (!isRunning || !analyser) return;
+
+      const buffer = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(buffer);
+      let sumSquares = 0;
+      for (const value of buffer) sumSquares += value * value;
+      const rms = Math.sqrt(sumSquares / buffer.length);
+      rmsHistory.push(rms);
+      if (rmsHistory.length > 240) rmsHistory.shift();
+
+      const level = Math.min(100, Math.round(rms * 1800));
+      meterFillEl.style.width = `${level}%`;
+
+      const now = Date.now();
+      const { threshold, silenceMs, maxSegmentMs } = cfg();
+
+      if (rms >= threshold) {
+        if (!isSpeeching) {
+          isSpeeching = true;
+          setActivity("Speaking", "speaking");
+          pauseBeforeCurrentSpeechMs = now - lastSilenceStartedAt;
+          lastPauseEl.textContent = `${pauseBeforeCurrentSpeechMs} ms`;
+
+          if (segmentStartedAt === null) {
+            segmentStartedAt = now;
+            rmsHistory = [rms];
+          }
+
+          if (speechStartedAt === null) speechStartedAt = now;
+          beginRecorderSegment();
+        }
+        lastSpeechAt = now;
+        speechEndedAt = now;
+      } else {
+        if (isSpeeching) {
+          isSpeeching = false;
+          setActivity("Trailing silence", "live");
+          lastSilenceStartedAt = now;
+        }
+      }
+
+      if (segmentStartedAt !== null && isRecorderSegmentActive && !isUploading) {
+        const segmentAge = now - segmentStartedAt;
+        const silenceAge = lastSpeechAt ? now - lastSpeechAt : now - segmentStartedAt;
+
+        if ((lastSpeechAt && silenceAge >= silenceMs) || segmentAge >= maxSegmentMs) {
+          stopRecorderSegment();
+        }
+      }
+
+      rafId = requestAnimationFrame(sampleLoop);
+    }
+
+    startBtn.addEventListener("click", startCapture);
+    stopBtn.addEventListener("click", stopEverything);
+    checkBackend();
+  </script>
+</body>
+</html>

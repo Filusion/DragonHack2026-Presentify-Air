@@ -1,0 +1,38 @@
+How to run
+
+1. Open a terminal in the backend folder.
+2. Activate your virtual environment if needed.
+3. Set your OpenAI API key.
+4. Start the backend.
+
+Backend commands:
+set OPENAI_API_KEY=your_actual_api_key
+uvicorn app:app --reload
+
+5. Open a second terminal in the frontend folder.
+6. Start the frontend server.
+
+Frontend command:
+python -m http.server 5500
+
+Links
+
+Frontend:
+http://127.0.0.1:5500/index.html
+
+Backend:
+http://127.0.0.1:8000
+
+Backend health:
+http://127.0.0.1:8000/health
+
+Backend docs:
+http://127.0.0.1:8000/docs
+
+Notes
+
+- Backend must be running before the frontend can send transcription requests.
+- If the page seems outdated, do a hard refresh with Ctrl + F5.
+- If you see "Failed to fetch", check that the backend is running on port 8000.
+- The frontend sends audio chunks to POST /transcribe-chunk on the backend. The backend then transcribes them with OpenAI Whisper. The backend code currently exposes /health and /transcribe-chunk. fileciteturn7file11turn7file16
+- Transcript events are logged on the backend in transcripts.txt, and commands are logged in commands.txt. fileciteturn7file11turn7file19
