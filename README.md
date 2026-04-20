@@ -46,6 +46,7 @@ Presentify-Air allows seamless, touch-free presentations. Using computer vision 
 ## 🔮 Future Improvements
 
 - Custom gesture configuration  
-- Multi-language transcription  
+- Multi-language transcription
+- Transcription summaries
 - Slide content summarization  
 - Integration with PowerPoint / Google Slides  
