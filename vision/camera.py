@@ -1,29 +1,28 @@
-import depthai as dai
 import cv2
 
 class Camera:
-    def __init__(self, resolution=(1920, 1080), socket=dai.CameraBoardSocket.CAM_A):
+    def __init__(self, cam_id=0, resolution=(1920, 1080)):
+        self.cam_id = cam_id
         self.resolution = resolution
-        self.socket = socket
-        self._pipeline = None
-        self._queue = None
-        self._start()
+        self.cap = cv2.VideoCapture(self.cam_id)
 
-    def _start(self):
-        self._pipeline = dai.Pipeline()
-        self._pipeline.__enter__()
-        cam = self._pipeline.create(dai.node.Camera).build(self.socket)
-        self._queue = cam.requestOutput(self.resolution, dai.ImgFrame.Type.BGR888i).createOutputQueue()
-        self._pipeline.start()
+        # optional: set resolution
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, resolution[0])
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
+
+        if not self.cap.isOpened():
+            raise RuntimeError("Cannot open webcam")
 
     def get_frame(self):
-        frame: dai.ImgFrame = self._queue.get()
-        return frame.getCvFrame()
+        ret, frame = self.cap.read()
+        if not ret:
+            raise RuntimeError("Failed to read frame")
+        return frame
 
     def release(self):
-        if self._pipeline:
-            self._pipeline.__exit__(None, None, None)
-            self._pipeline = None
+        if self.cap:
+            self.cap.release()
+            self.cap = None
 
     def __enter__(self):
         return self
